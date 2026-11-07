@@ -11,6 +11,10 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+      SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+      SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+      SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -41,22 +45,19 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Prepare release signing key
-        if: ${{ secrets.SIGNING_KEYSTORE_BASE64 != '' && secrets.SIGNING_STORE_PASSWORD != '' && secrets.SIGNING_KEY_ALIAS != '' && secrets.SIGNING_KEY_PASSWORD != '' }}
-        env:
-          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        if: ${{ env.SIGNING_KEYSTORE_BASE64 != '' && env.SIGNING_STORE_PASSWORD != '' && env.SIGNING_KEY_ALIAS != '' && env.SIGNING_KEY_PASSWORD != '' }}
         run: |
           echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/donald-release.jks"
           echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/donald-release.jks" >> "$GITHUB_ENV"
-          echo "SIGNING_STORE_PASSWORD=${{ secrets.SIGNING_STORE_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "SIGNING_KEY_ALIAS=${{ secrets.SIGNING_KEY_ALIAS }}" >> "$GITHUB_ENV"
-          echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "::add-mask::$SIGNING_STORE_PASSWORD"
+          echo "::add-mask::$SIGNING_KEY_PASSWORD"
 
       - name: Build signed release APK
         if: ${{ secrets.SIGNING_KEYSTORE_BASE64 != '' && secrets.SIGNING_STORE_PASSWORD != '' && secrets.SIGNING_KEY_ALIAS != '' && secrets.SIGNING_KEY_PASSWORD != '' }}
         run: gradle assembleRelease
 
       - name: Build debug APK (signing secrets not configured)
-        if: ${{ secrets.SIGNING_KEYSTORE_BASE64 == '' || secrets.SIGNING_STORE_PASSWORD == '' || secrets.SIGNING_KEY_ALIAS == '' || secrets.SIGNING_KEY_PASSWORD == '' }}
+        if: ${{ env.SIGNING_KEYSTORE_BASE64 == '' || env.SIGNING_STORE_PASSWORD == '' || env.SIGNING_KEY_ALIAS == '' || env.SIGNING_KEY_PASSWORD == '' }}
         run: gradle assembleDebug
 
       - name: Upload signed release APK
