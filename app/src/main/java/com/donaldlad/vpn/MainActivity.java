@@ -147,8 +147,10 @@ public class MainActivity extends Activity {
             backend.setState(tunnel, Tunnel.State.UP, config);
             status.setText("État : connexion demandée");
         } catch (Exception e) {
-            status.setText("État : échec de connexion");
-            Toast.makeText(this, "Connexion impossible. Vérifie le serveur et le fichier .conf.", Toast.LENGTH_LONG).show();
+            String detail = e.getMessage();
+            if (detail == null || detail.trim().isEmpty()) detail = e.getClass().getSimpleName();
+            status.setText("Échec VPN : " + detail);
+            Toast.makeText(this, "Échec VPN : " + detail, Toast.LENGTH_LONG).show();
         }
     }
 
