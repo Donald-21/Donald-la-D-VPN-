@@ -149,6 +149,9 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             android.util.Log.e("DONALD_LA_VPN", "Échec du démarrage WireGuard", e);
             StringBuilder detail = new StringBuilder(e.getClass().getSimpleName());
+            if (e.getMessage() != null && !e.getMessage().trim().isEmpty()) {
+                detail.append(": ").append(e.getMessage());
+            }
             Throwable cause = e.getCause();
             int depth = 0;
             while (cause != null && cause != e && depth < 4) {
