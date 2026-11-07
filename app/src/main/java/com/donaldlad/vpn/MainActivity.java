@@ -147,8 +147,21 @@ public class MainActivity extends Activity {
             backend.setState(tunnel, Tunnel.State.UP, config);
             status.setText("État : connexion demandée");
         } catch (Exception e) {
-            String detail = e.getMessage();
-            if (detail == null || detail.trim().isEmpty()) detail = e.getClass().getSimpleName();
+            android.util.Log.e("DONALD_LA_VPN", "Échec du démarrage WireGuard", e);
+            StringBuilder detail = new StringBuilder(e.getClass().getSimpleName());
+            Throwable cause = e.getCause();
+            int depth = 0;
+            while (cause != null && cause != e && depth < 4) {
+                String message = cause.getMessage();
+                detail.append(" → ").append(cause.getClass().getSimpleName());
+                if (message != null && !message.trim().isEmpty()) {
+                    detail.append(": ").append(message);
+                }
+                Throwable next = cause.getCause();
+                if (next == cause) break;
+                cause = next;
+                depth++;
+            }
             status.setText("Échec VPN : " + detail);
             Toast.makeText(this, "Échec VPN : " + detail, Toast.LENGTH_LONG).show();
         }
