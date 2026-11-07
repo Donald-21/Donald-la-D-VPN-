@@ -18,10 +18,12 @@ import java.io.InputStream;
 
 public class MainActivity extends Activity {
     private static final int PICK_CONFIG = 1001;
+    private static final int VPN_PERMISSION = 1002;
     private GoBackend backend;
     private Config config;
     private final AppTunnel tunnel = new AppTunnel();
     private TextView status;
+    private boolean pendingConnect;
 
     private final class AppTunnel implements Tunnel {
         @Override
@@ -96,10 +98,25 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == VPN_PERMISSION) {
+            if (resultCode == RESULT_OK && pendingConnect) {
+                pendingConnect = false;
+                startTunnel();
+            } else {
+                pendingConnect = false;
+                Toast.makeText(this, "Autorisation VPN refusée", Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+
         if (requestCode != PICK_CONFIG || resultCode != RESULT_OK || data == null) return;
 
         Uri uri = data.getData();
+        if (uri == null) return;
+
         try (InputStream input = getContentResolver().openInputStream(uri)) {
+            if (input == null) throw new IllegalStateException("Fichier inaccessible");
             config = Config.parse(input);
             status.setText("État : configuration importée, prête à être utilisée");
             Toast.makeText(this, "Configuration importée", Toast.LENGTH_SHORT).show();
@@ -115,20 +132,14 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Importe d'abord un fichier .conf", Toast.LENGTH_LONG).show();
             return;
         }
+
         Intent permissionIntent = GoBackend.VpnService.prepare(this);
         if (permissionIntent != null) {
-            startActivityForResult(permissionIntent, 1002);
             pendingConnect = true;
-            return;
+            startActivityForResult(permissionIntent, VPN_PERMISSION);
+        } else {
+            startTunnel();
         }
-        startTunnel();
-    }
-
-    private boolean pendingConnect = false;
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data, boolean unused) {
-        super.onActivityResult(requestCode, resultCode, data);
     }
 
     private void startTunnel() {
