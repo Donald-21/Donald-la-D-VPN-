@@ -44,6 +44,8 @@ public class MainActivity extends Activity {
     private boolean pendingConnect;
     private volatile boolean monitoring;
     private FrameLayout appFrame;
+    private Button toggleButton;
+    private volatile boolean tunnelActive;
     private final ExecutorService vpnExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -68,14 +70,14 @@ public class MainActivity extends Activity {
                     final long sent = tx;
                     final long lastHandshake = latestHandshake;
                     runOnUiThread(() -> {
-                        traffic.setText("Reçues : " + formatBytes(received)
+                        if (traffic != null) traffic.setText("Reçues : " + formatBytes(received)
                                 + "     Envoyées : " + formatBytes(sent));
-                        if (lastHandshake == 0) {
-                            handshake.setText("Proton : aucune négociation confirmée pour le moment");
-                        } else {
-                            long seconds = Math.max(0, (System.currentTimeMillis() - lastHandshake) / 1000);
-                            handshake.setText("Proton : échange confirmé (dernière négociation il y a "
-                                    + seconds + " s)");
+                        if (handshake != null) {
+                            if (lastHandshake == 0) handshake.setText("WireGuard : aucune négociation confirmée");
+                            else {
+                                long seconds = Math.max(0, (System.currentTimeMillis() - lastHandshake) / 1000);
+                                handshake.setText("WireGuard : échange confirmé (il y a " + seconds + " s)");
+                            }
                         }
                     });
                 } catch (Exception e) {
@@ -94,9 +96,18 @@ public class MainActivity extends Activity {
 
         @Override
         public void onStateChange(State state) {
-            runOnUiThread(() -> { if (status != null) status.setText(
-                    state == State.UP ? "État : tunnel démarré" : "État : déconnecté"
-            ); });
+            tunnelActive = state == State.UP;
+            runOnUiThread(() -> {
+                if (status != null) status.setText(tunnelActive ? "État : tunnel démarré" : "État : déconnecté");
+                if (toggleButton != null) {
+                    toggleButton.setText(tunnelActive ? "DÉCONNECTER" : "CONNECTER");
+                    GradientDrawable circle = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                            tunnelActive ? new int[]{0xFF0A9B87, 0xFF075B70} : new int[]{0xFF168DFF, 0xFF064A9C});
+                    circle.setShape(GradientDrawable.OVAL);
+                    circle.setStroke(dp(3), 0xFF79D8FF);
+                    toggleButton.setBackground(circle);
+                }
+            });
         }
     }
 
@@ -105,7 +116,8 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         backend = new GoBackend(this);
         appFrame = new FrameLayout(this);
-        appFrame.setBackgroundColor(Color.rgb(5, 12, 27));
+        GradientDrawable backdrop = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFF06152B, 0xFF0A3154, 0xFF030914});
+        appFrame.setBackground(backdrop);
         ImageView watermark = new ImageView(this);
         watermark.setImageResource(R.drawable.phoenix_logo6);
         watermark.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -160,8 +172,29 @@ public class MainActivity extends Activity {
             TextView welcome = pageText("Bienvenue. Choisis une rubrique :", 16, Color.WHITE);
             welcome.setGravity(Gravity.CENTER);
             page.addView(welcome);
-            addPageButton(page, "Connexion", "Connexion");
-            addPageButton(page, "Déconnexion", "Déconnexion");
+            TextView hint = pageText("PROTECTION DE VOTRE CONNEXION", 12, 0xFF9BC8E8);
+            hint.setGravity(Gravity.CENTER);
+            page.addView(hint);
+            toggleButton = new Button(this);
+            toggleButton.setText(tunnelActive ? "DÉCONNECTER" : "CONNECTER");
+            toggleButton.setTextColor(Color.WHITE);
+            toggleButton.setTextSize(17);
+            toggleButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            toggleButton.setAllCaps(false);
+            GradientDrawable circle = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    tunnelActive ? new int[]{0xFF0A9B87, 0xFF075B70} : new int[]{0xFF168DFF, 0xFF064A9C});
+            circle.setShape(GradientDrawable.OVAL);
+            circle.setStroke(dp(3), 0xFF79D8FF);
+            toggleButton.setBackground(circle);
+            toggleButton.setElevation(dp(14));
+            LinearLayout.LayoutParams toggleParams = new LinearLayout.LayoutParams(dp(196), dp(196));
+            toggleParams.gravity = Gravity.CENTER_HORIZONTAL;
+            toggleParams.topMargin = dp(22);
+            toggleParams.bottomMargin = dp(22);
+            page.addView(toggleButton, toggleParams);
+            toggleButton.setOnClickListener(v -> {
+                if (tunnelActive) disconnectVpn(); else connectVpn();
+            });
             addPageButton(page, "Importer une configuration", "Configuration");
         } else if ("Configuration".equals(pageName)) {
             page.addView(pageText("IMPORTER UN PROFIL WIREGUARD", 16, Color.WHITE));
@@ -199,7 +232,13 @@ public class MainActivity extends Activity {
 
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
-        nav.setBackgroundColor(0xFF0D2038);
+        GradientDrawable navBg = new GradientDrawable();
+        navBg.setColor(0xEE102A45);
+        navBg.setCornerRadius(dp(26));
+        navBg.setStroke(dp(1), 0x553DABEF);
+        nav.setBackground(navBg);
+        nav.setPadding(dp(8), dp(4), dp(8), dp(4));
+        nav.setElevation(dp(12));
         String[][] tabs = {{"MENU","Menu"},{"CONFIGURATION","Configuration"},{"LOG","Log"},{"MORE","More"}};
         for (String[] tab : tabs) {
             Button b = menuButton(tab[0]);
@@ -210,6 +249,7 @@ public class MainActivity extends Activity {
         }
         FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        navParams.setMargins(dp(12), 0, dp(12), dp(12));
         appFrame.addView(nav, navParams);
     }
 
@@ -273,13 +313,13 @@ public class MainActivity extends Activity {
         try (InputStream input = getContentResolver().openInputStream(uri)) {
             if (input == null) throw new IllegalStateException("Fichier inaccessible");
             config = Config.parse(input);
-            status.setText("État : configuration importée, prête à être utilisée");
-            handshake.setText("Proton : en attente de connexion");
-            traffic.setText("Reçues : —     Envoyées : —");
+            if (status != null) status.setText("État : configuration importée, prête à être utilisée");
+            if (handshake != null) handshake.setText("WireGuard : en attente de connexion");
+            if (traffic != null) traffic.setText("Reçues : —     Envoyées : —");
             Toast.makeText(this, "Configuration importée", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             config = null;
-            status.setText("État : fichier de configuration invalide");
+            if (status != null) status.setText("État : fichier de configuration invalide");
             Toast.makeText(this, "Impossible de lire ce fichier WireGuard", Toast.LENGTH_LONG).show();
         }
     }
@@ -300,14 +340,14 @@ public class MainActivity extends Activity {
     }
 
     private void startTunnel() {
-        status.setText("État : démarrage du VPN…");
+        if (status != null) status.setText("État : démarrage du VPN…");
         vpnExecutor.execute(() -> {
             try {
                 backend.setState(tunnel, Tunnel.State.UP, config);
                 monitoring = true;
                 runOnUiThread(() -> {
-                    status.setText("État : tunnel démarré, vérification du serveur…");
-                    handshake.setText("Proton : vérification de la négociation…");
+                    if (status != null) status.setText("État : tunnel démarré, vérification du serveur…");
+                    if (handshake != null) handshake.setText("WireGuard : vérification de la négociation…");
                     mainHandler.removeCallbacks(statsPoll);
                     mainHandler.post(statsPoll);
                 });
@@ -333,8 +373,8 @@ public class MainActivity extends Activity {
                 }
                 final String error = detail.toString();
                 runOnUiThread(() -> {
-                    status.setText("Échec VPN : " + error);
-                    handshake.setText("Proton : connexion non établie");
+                    if (status != null) status.setText("Échec VPN : " + error);
+                    if (handshake != null) handshake.setText("WireGuard : connexion non établie");
                     Toast.makeText(this, "Échec VPN : " + error, Toast.LENGTH_LONG).show();
                 });
             }
@@ -344,14 +384,14 @@ public class MainActivity extends Activity {
     private void disconnectVpn() {
         monitoring = false;
         mainHandler.removeCallbacks(statsPoll);
-        status.setText("État : déconnexion…");
+        if (status != null) status.setText("État : déconnexion…");
         vpnExecutor.execute(() -> {
             try {
                 backend.setState(tunnel, Tunnel.State.DOWN, null);
                 runOnUiThread(() -> {
-                    status.setText("État : déconnecté");
-                    traffic.setText("Reçues : —     Envoyées : —");
-                    handshake.setText("Proton : déconnecté");
+                    if (status != null) status.setText("État : déconnecté");
+                    if (traffic != null) traffic.setText("Reçues : —     Envoyées : —");
+                    if (handshake != null) handshake.setText("WireGuard : déconnecté");
                 });
             } catch (Exception e) {
                 android.util.Log.e("DONALD_LA_VPN", "Échec de la déconnexion", e);
