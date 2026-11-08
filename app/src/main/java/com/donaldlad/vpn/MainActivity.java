@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     private TextView handshake;
     private boolean pendingConnect;
     private volatile boolean monitoring;
+    private FrameLayout appFrame;
     private final ExecutorService vpnExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -93,132 +94,118 @@ public class MainActivity extends Activity {
 
         @Override
         public void onStateChange(State state) {
-            runOnUiThread(() -> status.setText(
+            runOnUiThread(() -> { if (status != null) status.setText(
                     state == State.UP ? "État : tunnel démarré" : "État : déconnecté"
-            ));
+            ); });
         }
     }
+
+    private FrameLayout appFrame;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         backend = new GoBackend(this);
+        appFrame = new FrameLayout(this);
+        appFrame.setBackgroundColor(Color.rgb(5, 12, 27));
+        setContentView(appFrame);
+        showPage("Accueil");
+    }
 
-        FrameLayout frame = new FrameLayout(this);
-        frame.setBackgroundColor(Color.rgb(5, 12, 27));
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
 
-        ImageView phoenix = new ImageView(this);
-        phoenix.setImageResource(com.donaldlad.vpn.R.drawable.phoenix_logo6);
-        phoenix.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        phoenix.setAlpha(0.20f);
-        frame.addView(phoenix, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    private TextView pageText(String value, int size, int color) {
+        TextView t = new TextView(this);
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        t.setPadding(0, dp(8), 0, dp(8));
+        return t;
+    }
 
+    private void showPage(String pageName) {
+        appFrame.removeAllViews();
         ScrollView scroll = new ScrollView(this);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(28, 30, 28, 36);
-        scroll.addView(root);
-        frame.addView(scroll, new FrameLayout.LayoutParams(
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(24), dp(20), dp(24), dp(28));
+        scroll.addView(page);
+        appFrame.addView(scroll, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        TextView title = new TextView(this);
-        title.setText("DONALD LA D VPN");
-        title.setTextSize(27);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.phoenix_logo6);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(138), dp(138));
+        logoParams.gravity = Gravity.CENTER_HORIZONTAL;
+        logoParams.bottomMargin = dp(8);
+        page.addView(logo, logoParams);
+
+        TextView title = pageText("DONALD LA D VPN", 24, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setTextColor(Color.WHITE);
         title.setGravity(Gravity.CENTER);
-        title.setPadding(0, 8, 0, 4);
-        root.addView(title);
-
-        TextView subtitle = new TextView(this);
-        subtitle.setText("PROTECTION • CONFIDENTIALITÉ • LIBERTÉ");
-        subtitle.setTextSize(11);
-        subtitle.setTextColor(0xFF69CFFF);
+        page.addView(title);
+        TextView subtitle = pageText(pageName.toUpperCase(Locale.ROOT), 12, 0xFF69CFFF);
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 0, 0, 22);
-        root.addView(subtitle);
+        subtitle.setPadding(0, 0, 0, dp(20));
+        page.addView(subtitle);
 
-        LinearLayout menu = new LinearLayout(this);
-        menu.setOrientation(LinearLayout.VERTICAL);
-        menu.setPadding(0, 8, 0, 18);
-        root.addView(menu);
-        TextView menuTitle = new TextView(this);
-        menuTitle.setText("MENU PRINCIPAL");
-        menuTitle.setTextColor(0xFF69CFFF);
-        menuTitle.setTextSize(12);
-        menuTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        menuTitle.setPadding(0, 4, 0, 8);
-        menu.addView(menuTitle);
+        if ("Accueil".equals(pageName)) {
+            TextView welcome = pageText("Bienvenue. Choisis une rubrique :", 16, Color.WHITE);
+            welcome.setGravity(Gravity.CENTER);
+            page.addView(welcome);
+            addPageButton(page, "Importer une configuration", "Importer");
+            addPageButton(page, "Connexion", "Connexion");
+            addPageButton(page, "Diagnostic", "Diagnostic");
+            addPageButton(page, "Paramètres", "Paramètres");
+        } else if ("Importer".equals(pageName)) {
+            page.addView(pageText("IMPORTER UN PROFIL WIREGUARD", 16, Color.WHITE));
+            page.addView(pageText("Sélectionne le fichier .conf fourni par ton service VPN.", 14, 0xFFD6E7F5));
+            Button importButton = menuButton("Choisir un fichier .conf");
+            importButton.setOnClickListener(v -> chooseConfig());
+            page.addView(importButton);
+            status = pageText("Aucun nouveau fichier sélectionné.", 14, Color.WHITE);
+            page.addView(status);
+        } else if ("Connexion".equals(pageName)) {
+            page.addView(pageText("ÉTAT DU VPN", 16, Color.WHITE));
+            status = pageText(config == null ? "Aucune configuration importée" : "Configuration prête", 15, Color.WHITE);
+            page.addView(status);
+            Button connect = menuButton("Se connecter");
+            connect.setOnClickListener(v -> connectVpn());
+            page.addView(connect);
+            Button disconnect = menuButton("Se déconnecter");
+            disconnect.setOnClickListener(v -> disconnectVpn());
+            page.addView(disconnect);
+            Button importButton = menuButton("Importer une configuration");
+            importButton.setOnClickListener(v -> showPage("Importer"));
+            page.addView(importButton);
+        } else if ("Diagnostic".equals(pageName)) {
+            page.addView(pageText("DIAGNOSTIC DE CONNEXION", 16, 0xFF69CFFF));
+            traffic = pageText("Reçues : —     Envoyées : —", 15, Color.WHITE);
+            page.addView(traffic);
+            handshake = pageText("Proton : en attente de connexion", 14, 0xFFD6E7F5);
+            page.addView(handshake);
+            page.addView(pageText("Un tunnel démarré ne confirme pas à lui seul que le serveur répond. Vérifie la négociation et le trafic.", 12, 0xFFB7C9D9));
+        } else if ("Paramètres".equals(pageName)) {
+            page.addView(pageText("PARAMÈTRES DE L’APPLICATION", 16, Color.WHITE));
+            page.addView(pageText("Le profil serveur et les clés sont définis dans le fichier WireGuard .conf importé. N’envoie jamais ta clé privée à quelqu’un.", 14, 0xFFD6E7F5));
+            page.addView(pageText("Version 1.2 • DONALD LA D VPN", 12, 0xFF69CFFF));
+        }
 
-        TextView homeAnchor = new TextView(this);
-        homeAnchor.setText("ACCUEIL");
-        homeAnchor.setTextColor(Color.WHITE);
-        homeAnchor.setTextSize(18);
-        homeAnchor.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        root.addView(homeAnchor);
+        Button back = menuButton("← Retour à l’accueil");
+        back.setOnClickListener(v -> showPage("Accueil"));
+        LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        backParams.topMargin = dp(18);
+        page.addView(back, backParams);
+    }
 
-        status = new TextView(this);
-        status.setText("État : aucune configuration importée");
-        status.setTextColor(Color.WHITE);
-        status.setTextSize(15);
-        status.setPadding(0, 14, 0, 18);
-        root.addView(status);
-
-        Button importButton = menuButton("Importer une configuration");
-        importButton.setOnClickListener(v -> chooseConfig());
-        menu.addView(importButton);
-
-        Button connectButton = menuButton("Connexion");
-        connectButton.setOnClickListener(v -> connectVpn());
-        menu.addView(connectButton);
-
-        Button disconnectButton = menuButton("Déconnexion");
-        disconnectButton.setOnClickListener(v -> disconnectVpn());
-        menu.addView(disconnectButton);
-
-        Button diagnosticButton = menuButton("Diagnostic");
-        diagnosticButton.setOnClickListener(v -> {
-            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
-        });
-        menu.addView(diagnosticButton);
-
-        Button settingsButton = menuButton("Paramètres");
-        settingsButton.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
-                .setTitle("Paramètres")
-                .setMessage("DONALD LA D VPN\n\nImporte un fichier WireGuard .conf fourni par ton service VPN. Les paramètres du serveur restent définis dans ce fichier.")
-                .setPositiveButton("Fermer", null).show());
-        menu.addView(settingsButton);
-
-        TextView diagnosticTitle = new TextView(this);
-        diagnosticTitle.setText("DIAGNOSTIC DE CONNEXION");
-        diagnosticTitle.setTextSize(14);
-        diagnosticTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        diagnosticTitle.setTextColor(0xFF69CFFF);
-        diagnosticTitle.setPadding(0, 22, 0, 12);
-        root.addView(diagnosticTitle);
-
-        traffic = new TextView(this);
-        traffic.setText("Reçues : —     Envoyées : —");
-        traffic.setTextSize(15);
-        traffic.setTextColor(Color.WHITE);
-        traffic.setPadding(0, 0, 0, 12);
-        root.addView(traffic);
-
-        handshake = new TextView(this);
-        handshake.setText("Proton : en attente de connexion");
-        handshake.setTextSize(14);
-        handshake.setTextColor(0xFFD6E7F5);
-        root.addView(handshake);
-
-        TextView note = new TextView(this);
-        note.setText("« Tunnel démarré » ne signifie pas encore que le serveur répond. Vérifie ici la négociation et le trafic.");
-        note.setTextSize(12);
-        note.setTextColor(0xFFB7C9D9);
-        note.setPadding(0, 22, 0, 0);
-        root.addView(note);
-
-        setContentView(frame);
+    private void addPageButton(LinearLayout page, String label, String destination) {
+        Button button = menuButton(label);
+        button.setOnClickListener(v -> showPage(destination));
+        page.addView(button);
     }
 
     private Button menuButton(String label) {
