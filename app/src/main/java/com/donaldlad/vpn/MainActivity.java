@@ -178,10 +178,7 @@ public class MainActivity extends Activity {
 
         Button diagnosticButton = menuButton("Diagnostic");
         diagnosticButton.setOnClickListener(v -> {
-            diagnosticTitle.setFocusable(true);
-            diagnosticTitle.setFocusableInTouchMode(true);
-            diagnosticTitle.requestFocus();
-            scroll.smoothScrollTo(0, diagnosticTitle.getTop());
+            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
         });
         menu.addView(diagnosticButton);
 
