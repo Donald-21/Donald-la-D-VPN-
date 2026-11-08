@@ -100,16 +100,20 @@ public class MainActivity extends Activity {
         }
     }
 
-    private FrameLayout appFrame;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         backend = new GoBackend(this);
         appFrame = new FrameLayout(this);
         appFrame.setBackgroundColor(Color.rgb(5, 12, 27));
+        ImageView watermark = new ImageView(this);
+        watermark.setImageResource(R.drawable.phoenix_logo6);
+        watermark.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        watermark.setAlpha(0.10f);
+        appFrame.addView(watermark, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(appFrame);
-        showPage("Accueil");
+        showPage("Menu");
     }
 
     private int dp(float value) {
@@ -126,7 +130,7 @@ public class MainActivity extends Activity {
     }
 
     private void showPage(String pageName) {
-        appFrame.removeAllViews();
+        appFrame.removeViews(1, Math.max(0, appFrame.getChildCount() - 1));
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -152,21 +156,20 @@ public class MainActivity extends Activity {
         subtitle.setPadding(0, 0, 0, dp(20));
         page.addView(subtitle);
 
-        if ("Accueil".equals(pageName)) {
+        if ("Menu".equals(pageName)) {
             TextView welcome = pageText("Bienvenue. Choisis une rubrique :", 16, Color.WHITE);
             welcome.setGravity(Gravity.CENTER);
             page.addView(welcome);
-            addPageButton(page, "Importer une configuration", "Importer");
             addPageButton(page, "Connexion", "Connexion");
-            addPageButton(page, "Diagnostic", "Diagnostic");
-            addPageButton(page, "Paramètres", "Paramètres");
-        } else if ("Importer".equals(pageName)) {
+            addPageButton(page, "Déconnexion", "Déconnexion");
+            addPageButton(page, "Importer une configuration", "Configuration");
+        } else if ("Configuration".equals(pageName)) {
             page.addView(pageText("IMPORTER UN PROFIL WIREGUARD", 16, Color.WHITE));
             page.addView(pageText("Sélectionne le fichier .conf fourni par ton service VPN.", 14, 0xFFD6E7F5));
             Button importButton = menuButton("Choisir un fichier .conf");
             importButton.setOnClickListener(v -> chooseConfig());
             page.addView(importButton);
-            status = pageText("Aucun nouveau fichier sélectionné.", 14, Color.WHITE);
+            status = pageText(config == null ? "Aucune configuration importée." : "Configuration importée.", 14, Color.WHITE);
             page.addView(status);
         } else if ("Connexion".equals(pageName)) {
             page.addView(pageText("ÉTAT DU VPN", 16, Color.WHITE));
@@ -179,27 +182,35 @@ public class MainActivity extends Activity {
             disconnect.setOnClickListener(v -> disconnectVpn());
             page.addView(disconnect);
             Button importButton = menuButton("Importer une configuration");
-            importButton.setOnClickListener(v -> showPage("Importer"));
+            importButton.setOnClickListener(v -> showPage("Configuration"));
             page.addView(importButton);
-        } else if ("Diagnostic".equals(pageName)) {
+        } else if ("Log".equals(pageName)) {
             page.addView(pageText("DIAGNOSTIC DE CONNEXION", 16, 0xFF69CFFF));
             traffic = pageText("Reçues : —     Envoyées : —", 15, Color.WHITE);
             page.addView(traffic);
             handshake = pageText("Proton : en attente de connexion", 14, 0xFFD6E7F5);
             page.addView(handshake);
             page.addView(pageText("Un tunnel démarré ne confirme pas à lui seul que le serveur répond. Vérifie la négociation et le trafic.", 12, 0xFFB7C9D9));
-        } else if ("Paramètres".equals(pageName)) {
+        } else if ("More".equals(pageName)) {
             page.addView(pageText("PARAMÈTRES DE L’APPLICATION", 16, Color.WHITE));
             page.addView(pageText("Le profil serveur et les clés sont définis dans le fichier WireGuard .conf importé. N’envoie jamais ta clé privée à quelqu’un.", 14, 0xFFD6E7F5));
             page.addView(pageText("Version 1.2 • DONALD LA D VPN", 12, 0xFF69CFFF));
         }
 
-        Button back = menuButton("← Retour à l’accueil");
-        back.setOnClickListener(v -> showPage("Accueil"));
-        LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        backParams.topMargin = dp(18);
-        page.addView(back, backParams);
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        nav.setBackgroundColor(0xFF0D2038);
+        String[][] tabs = {{"MENU","Menu"},{"CONFIGURATION","Configuration"},{"LOG","Log"},{"MORE","More"}};
+        for (String[] tab : tabs) {
+            Button b = menuButton(tab[0]);
+            b.setTextSize(9);
+            b.setPadding(dp(2), dp(10), dp(2), dp(10));
+            b.setOnClickListener(v -> showPage(tab[1]));
+            nav.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        }
+        FrameLayout.LayoutParams navParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        appFrame.addView(nav, navParams);
     }
 
     private void addPageButton(LinearLayout page, String label, String destination) {
