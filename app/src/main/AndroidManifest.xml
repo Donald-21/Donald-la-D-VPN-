@@ -5,8 +5,8 @@
     <application
         android:allowBackup="false"
         android:label="DONALD LA D VPN"
-        android:icon="@drawable/phoenix_logo6"
-        android:roundIcon="@drawable/phoenix_logo6"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="false">
 
