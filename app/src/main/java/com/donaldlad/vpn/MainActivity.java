@@ -144,106 +144,156 @@ public class MainActivity extends Activity {
     private void showPage(String pageName) {
         appFrame.removeViews(1, Math.max(0, appFrame.getChildCount() - 1));
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(24), dp(20), dp(24), dp(28));
+        page.setPadding(dp(20), dp(22), dp(20), dp(110));
         scroll.addView(page);
         appFrame.addView(scroll, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
+        LinearLayout brand = new LinearLayout(this);
+        brand.setGravity(Gravity.CENTER_VERTICAL);
+        brand.setOrientation(LinearLayout.HORIZONTAL);
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.phoenix_logo6);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(138), dp(138));
-        logoParams.gravity = Gravity.CENTER_HORIZONTAL;
-        logoParams.bottomMargin = dp(8);
-        page.addView(logo, logoParams);
-
-        TextView title = pageText("DONALD LA D VPN", 24, Color.WHITE);
+        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        GradientDrawable logoFrame = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF1E9FFF, 0xFF071D39});
+        logoFrame.setCornerRadius(dp(20));
+        logoFrame.setStroke(dp(1), 0xFF62CFFF);
+        logo.setBackground(logoFrame);
+        logo.setClipToOutline(true);
+        brand.addView(logo, new LinearLayout.LayoutParams(dp(62), dp(62)));
+        LinearLayout brandText = new LinearLayout(this);
+        brandText.setOrientation(LinearLayout.VERTICAL);
+        brandText.setPadding(dp(14), 0, 0, 0);
+        TextView title = pageText("DONALD LA D", 20, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setGravity(Gravity.CENTER);
-        page.addView(title);
-        TextView subtitle = pageText(pageName.toUpperCase(Locale.ROOT), 12, 0xFF69CFFF);
-        subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 0, 0, dp(20));
-        page.addView(subtitle);
+        title.setPadding(0, 0, 0, dp(2));
+        brandText.addView(title);
+        TextView sub = pageText("VPN  •  PRIVATE CONNECTION", 10, 0xFF70CFFF);
+        sub.setPadding(0, 0, 0, 0);
+        sub.setLetterSpacing(0.08f);
+        brandText.addView(sub);
+        brand.addView(brandText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        page.addView(brand);
+
+        TextView section = pageText(pageName.toUpperCase(Locale.ROOT), 11, 0xFF8EDBFF);
+        section.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        section.setLetterSpacing(0.16f);
+        section.setPadding(0, dp(28), 0, dp(12));
+        page.addView(section);
 
         if ("Menu".equals(pageName)) {
-            TextView welcome = pageText("Bienvenue. Choisis une rubrique :", 16, Color.WHITE);
-            welcome.setGravity(Gravity.CENTER);
-            page.addView(welcome);
-            TextView hint = pageText("PROTECTION DE VOTRE CONNEXION", 12, 0xFF9BC8E8);
-            hint.setGravity(Gravity.CENTER);
-            page.addView(hint);
+            LinearLayout hero = glassPanel();
+            hero.setGravity(Gravity.CENTER);
+            TextView eyebrow = pageText("PROTECTION DE VOTRE CONNEXION", 10, 0xFF8DDCFF);
+            eyebrow.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            eyebrow.setGravity(Gravity.CENTER);
+            eyebrow.setLetterSpacing(0.10f);
+            hero.addView(eyebrow);
+            TextView headline = pageText("Votre univers.\nVotre connexion.", 25, Color.WHITE);
+            headline.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            headline.setGravity(Gravity.CENTER);
+            headline.setPadding(0, dp(8), 0, dp(5));
+            hero.addView(headline);
+            status = pageText(tunnelActive ? "●  TUNNEL ACTIF" : "●  PRÊT À SE CONNECTER", 12,
+                    tunnelActive ? 0xFF5FFFD0 : 0xFF9DC9E8);
+            status.setGravity(Gravity.CENTER);
+            hero.addView(status);
+
             toggleButton = new Button(this);
             toggleButton.setText(tunnelActive ? "DÉCONNECTER" : "CONNECTER");
             toggleButton.setTextColor(Color.WHITE);
-            toggleButton.setTextSize(17);
+            toggleButton.setTextSize(16);
             toggleButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             toggleButton.setAllCaps(false);
             GradientDrawable circle = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    tunnelActive ? new int[]{0xFF0A9B87, 0xFF075B70} : new int[]{0xFF168DFF, 0xFF064A9C});
+                    tunnelActive ? new int[]{0xFF00B894, 0xFF075B70} : new int[]{0xFF20B7FF, 0xFF0752B8});
             circle.setShape(GradientDrawable.OVAL);
-            circle.setStroke(dp(3), 0xFF79D8FF);
+            circle.setStroke(dp(2), 0xFF9BE7FF);
             toggleButton.setBackground(circle);
-            toggleButton.setElevation(dp(14));
-            LinearLayout.LayoutParams toggleParams = new LinearLayout.LayoutParams(dp(196), dp(196));
+            toggleButton.setElevation(dp(16));
+            LinearLayout.LayoutParams toggleParams = new LinearLayout.LayoutParams(dp(164), dp(164));
             toggleParams.gravity = Gravity.CENTER_HORIZONTAL;
-            toggleParams.topMargin = dp(22);
-            toggleParams.bottomMargin = dp(22);
-            page.addView(toggleButton, toggleParams);
+            toggleParams.topMargin = dp(20);
+            toggleParams.bottomMargin = dp(16);
+            hero.addView(toggleButton, toggleParams);
             toggleButton.setOnClickListener(v -> {
                 if (tunnelActive) disconnectVpn(); else connectVpn();
             });
-            addPageButton(page, "Importer une configuration", "Configuration");
+            TextView note = pageText(config == null ? "Importe ton profil WireGuard pour commencer." : "Profil WireGuard prêt à être utilisé.", 12, 0xFFB9D5EA);
+            note.setGravity(Gravity.CENTER);
+            hero.addView(note);
+            page.addView(hero);
+
+            TextView quickTitle = pageText("ACCÈS RAPIDE", 11, 0xFF8EDBFF);
+            quickTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            quickTitle.setLetterSpacing(0.14f);
+            quickTitle.setPadding(0, dp(22), 0, dp(8));
+            page.addView(quickTitle);
+            addPageButton(page, "＋   Importer une configuration", "Configuration");
+            addPageButton(page, "◉   État de la connexion", "Connexion");
+            addPageButton(page, "⌁   Diagnostic réseau", "Log");
+            addPageButton(page, "⚙   Paramètres", "More");
         } else if ("Configuration".equals(pageName)) {
-            page.addView(pageText("IMPORTER UN PROFIL WIREGUARD", 16, Color.WHITE));
-            page.addView(pageText("Sélectionne le fichier .conf fourni par ton service VPN.", 14, 0xFFD6E7F5));
-            Button importButton = menuButton("Choisir un fichier .conf");
+            LinearLayout card = glassPanel();
+            card.addView(pageText("PROFIL WIREGUARD", 16, Color.WHITE));
+            card.addView(pageText("Sélectionne le fichier .conf fourni par ton service VPN. Tes clés restent dans ton appareil.", 13, 0xFFBFD5E8));
+            Button importButton = menuButton("＋   Choisir un fichier .conf");
             importButton.setOnClickListener(v -> chooseConfig());
-            page.addView(importButton);
-            status = pageText(config == null ? "Aucune configuration importée." : "Configuration importée.", 14, Color.WHITE);
-            page.addView(status);
+            card.addView(importButton);
+            status = pageText(config == null ? "○  Aucune configuration importée" : "✓  Configuration importée", 13, config == null ? 0xFFFFC978 : 0xFF64E6C1);
+            card.addView(status);
+            page.addView(card);
         } else if ("Connexion".equals(pageName)) {
-            page.addView(pageText("ÉTAT DU VPN", 16, Color.WHITE));
-            status = pageText(config == null ? "Aucune configuration importée" : "Configuration prête", 15, Color.WHITE);
-            page.addView(status);
-            Button connect = menuButton("Se connecter");
+            LinearLayout card = glassPanel();
+            card.addView(pageText("ÉTAT DU TUNNEL", 16, Color.WHITE));
+            status = pageText(tunnelActive ? "●  Tunnel démarré" : (config == null ? "○  Aucun profil chargé" : "○  Profil prêt"), 14, 0xFFBFD5E8);
+            card.addView(status);
+            Button connect = menuButton("CONNECTER");
             connect.setOnClickListener(v -> connectVpn());
-            page.addView(connect);
-            Button disconnect = menuButton("Se déconnecter");
+            card.addView(connect);
+            Button disconnect = menuButton("DÉCONNECTER");
             disconnect.setOnClickListener(v -> disconnectVpn());
-            page.addView(disconnect);
+            card.addView(disconnect);
             Button importButton = menuButton("Importer une configuration");
             importButton.setOnClickListener(v -> showPage("Configuration"));
-            page.addView(importButton);
+            card.addView(importButton);
+            page.addView(card);
         } else if ("Log".equals(pageName)) {
-            page.addView(pageText("DIAGNOSTIC DE CONNEXION", 16, 0xFF69CFFF));
-            traffic = pageText("Reçues : —     Envoyées : —", 15, Color.WHITE);
-            page.addView(traffic);
-            handshake = pageText("Proton : en attente de connexion", 14, 0xFFD6E7F5);
-            page.addView(handshake);
-            page.addView(pageText("Un tunnel démarré ne confirme pas à lui seul que le serveur répond. Vérifie la négociation et le trafic.", 12, 0xFFB7C9D9));
+            LinearLayout card = glassPanel();
+            card.addView(pageText("DIAGNOSTIC EN DIRECT", 16, Color.WHITE));
+            traffic = pageText("Reçues : —     Envoyées : —", 14, 0xFFD8EAF8);
+            card.addView(traffic);
+            handshake = pageText("WireGuard : en attente de connexion", 13, 0xFF8EDBFF);
+            card.addView(handshake);
+            card.addView(pageText("Un tunnel démarré ne confirme pas à lui seul que le serveur répond. Vérifie la négociation et le trafic.", 12, 0xFF9FB8CC));
+            page.addView(card);
         } else if ("More".equals(pageName)) {
-            page.addView(pageText("PARAMÈTRES DE L’APPLICATION", 16, Color.WHITE));
-            page.addView(pageText("Le profil serveur et les clés sont définis dans le fichier WireGuard .conf importé. N’envoie jamais ta clé privée à quelqu’un.", 14, 0xFFD6E7F5));
-            page.addView(pageText("Version 1.2 • DONALD LA D VPN", 12, 0xFF69CFFF));
+            LinearLayout card = glassPanel();
+            card.addView(pageText("PARAMÈTRES & SÉCURITÉ", 16, Color.WHITE));
+            card.addView(pageText("Le serveur et les clés sont définis dans le fichier WireGuard .conf importé. Ne partage jamais ta clé privée.", 13, 0xFFBFD5E8));
+            card.addView(pageText("Version 1.3  •  DONALD LA D VPN", 11, 0xFF70CFFF));
+            page.addView(card);
         }
 
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
-        GradientDrawable navBg = new GradientDrawable();
-        navBg.setColor(0xEE102A45);
-        navBg.setCornerRadius(dp(26));
-        navBg.setStroke(dp(1), 0x553DABEF);
+        GradientDrawable navBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xF21B3856, 0xF208172B});
+        navBg.setCornerRadius(dp(24));
+        navBg.setStroke(dp(1), 0x6652BFFF);
         nav.setBackground(navBg);
-        nav.setPadding(dp(8), dp(4), dp(8), dp(4));
-        nav.setElevation(dp(12));
-        String[][] tabs = {{"MENU","Menu"},{"CONFIGURATION","Configuration"},{"LOG","Log"},{"MORE","More"}};
+        nav.setPadding(dp(7), dp(6), dp(7), dp(6));
+        nav.setElevation(dp(18));
+        String[][] tabs = {{"⌂  ACCUEIL","Menu"},{"▣  PROFIL","Configuration"},{"⌁  TEST","Log"},{"⚙  PLUS","More"}};
         for (String[] tab : tabs) {
             Button b = menuButton(tab[0]);
             b.setTextSize(9);
-            b.setPadding(dp(2), dp(10), dp(2), dp(10));
+            b.setPadding(dp(1), dp(11), dp(1), dp(11));
+            b.setBackgroundColor(Color.TRANSPARENT);
             b.setOnClickListener(v -> showPage(tab[1]));
             nav.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         }
@@ -251,6 +301,19 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
         navParams.setMargins(dp(12), 0, dp(12), dp(12));
         appFrame.addView(nav, navParams);
+    }
+
+    private LinearLayout glassPanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(18), dp(18), dp(18), dp(18));
+        GradientDrawable glass = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xD9234260, 0xD90A1A30});
+        glass.setCornerRadius(dp(26));
+        glass.setStroke(dp(1), 0x664CBFFF);
+        panel.setBackground(glass);
+        panel.setElevation(dp(8));
+        return panel;
     }
 
     private void addPageButton(LinearLayout page, String label, String destination) {
@@ -264,15 +327,17 @@ public class MainActivity extends Activity {
         button.setText(label);
         button.setTextColor(Color.WHITE);
         button.setAllCaps(false);
-        button.setTextSize(15);
-        GradientDrawable shape = new GradientDrawable();
-        shape.setColor(0xCC10243D);
-        shape.setCornerRadius(18);
-        shape.setStroke(2, 0xFF168DCE);
+        button.setTextSize(14);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        GradientDrawable shape = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xDD193B5B, 0xDD0B1D33});
+        shape.setCornerRadius(dp(18));
+        shape.setStroke(dp(1), 0xFF278FCC);
         button.setBackground(shape);
+        button.setElevation(dp(3));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.setMargins(0, 5, 0, 5);
+        params.setMargins(0, dp(5), 0, dp(5));
         button.setLayoutParams(params);
         return button;
     }
