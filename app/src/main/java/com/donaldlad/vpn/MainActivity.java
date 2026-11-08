@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -11,22 +13,69 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.wireguard.android.backend.GoBackend;
+import com.wireguard.android.backend.Statistics;
 import com.wireguard.android.backend.Tunnel;
 import com.wireguard.config.Config;
+import com.wireguard.crypto.Key;
 
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final int PICK_CONFIG = 1001;
     private static final int VPN_PERMISSION = 1002;
+
     private GoBackend backend;
     private Config config;
     private final AppTunnel tunnel = new AppTunnel();
     private TextView status;
+    private TextView traffic;
+    private TextView handshake;
     private boolean pendingConnect;
+    private volatile boolean monitoring;
     private final ExecutorService vpnExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private final Runnable statsPoll = new Runnable() {
+        @Override
+        public void run() {
+            if (!monitoring) return;
+            vpnExecutor.execute(() -> {
+                try {
+                    Statistics stats = backend.getStatistics(tunnel);
+                    long rx = 0;
+                    long tx = 0;
+                    long latestHandshake = 0;
+                    for (Key peer : stats.peers()) {
+                        Statistics.PeerStats peerStats = stats.peer(peer);
+                        if (peerStats == null) continue;
+                        rx += peerStats.rxBytes();
+                        tx += peerStats.txBytes();
+                        latestHandshake = Math.max(latestHandshake, peerStats.latestHandshakeEpochMillis());
+                    }
+                    final long received = rx;
+                    final long sent = tx;
+                    final long lastHandshake = latestHandshake;
+                    runOnUiThread(() -> {
+                        traffic.setText("Reçues : " + formatBytes(received)
+                                + "     Envoyées : " + formatBytes(sent));
+                        if (lastHandshake == 0) {
+                            handshake.setText("Proton : aucune négociation confirmée pour le moment");
+                        } else {
+                            long seconds = Math.max(0, (System.currentTimeMillis() - lastHandshake) / 1000);
+                            handshake.setText("Proton : échange confirmé (dernière négociation il y a "
+                                    + seconds + " s)");
+                        }
+                    });
+                } catch (Exception e) {
+                    android.util.Log.e("DONALD_LA_VPN", "Lecture des statistiques impossible", e);
+                }
+            });
+            mainHandler.postDelayed(this, 3000);
+        }
+    };
 
     private final class AppTunnel implements Tunnel {
         @Override
@@ -37,7 +86,7 @@ public class MainActivity extends Activity {
         @Override
         public void onStateChange(State state) {
             runOnUiThread(() -> status.setText(
-                state == State.UP ? "État : connecté" : "État : déconnecté"
+                    state == State.UP ? "État : tunnel démarré" : "État : déconnecté"
             ));
         }
     }
@@ -49,28 +98,29 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(40, 56, 40, 40);
+        root.setPadding(40, 48, 40, 40);
         root.setLayoutParams(new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
         TextView title = new TextView(this);
         title.setText("DONALD LA D VPN");
-        title.setTextSize(26);
-        title.setPadding(0, 0, 0, 28);
+        title.setTextSize(25);
+        title.setTextColor(0xFF102A43);
+        title.setPadding(0, 0, 0, 10);
         root.addView(title);
 
-        TextView explanation = new TextView(this);
-        explanation.setText("Importe un fichier de configuration WireGuard (.conf) fourni par ton serveur VPN.");
-        explanation.setTextSize(16);
-        explanation.setPadding(0, 0, 0, 24);
-        root.addView(explanation);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Connexion sécurisée avec ta configuration WireGuard / Proton VPN");
+        subtitle.setTextSize(14);
+        subtitle.setPadding(0, 0, 0, 24);
+        root.addView(subtitle);
 
         status = new TextView(this);
         status.setText("État : aucune configuration importée");
-        status.setTextSize(16);
-        status.setPadding(0, 0, 0, 24);
+        status.setTextSize(17);
+        status.setPadding(0, 0, 0, 18);
         root.addView(status);
 
         Button importButton = new Button(this);
@@ -88,7 +138,37 @@ public class MainActivity extends Activity {
         disconnectButton.setOnClickListener(v -> disconnectVpn());
         root.addView(disconnectButton);
 
+        TextView diagnosticTitle = new TextView(this);
+        diagnosticTitle.setText("DIAGNOSTIC DE CONNEXION");
+        diagnosticTitle.setTextSize(14);
+        diagnosticTitle.setTextColor(0xFF19A596);
+        diagnosticTitle.setPadding(0, 28, 0, 12);
+        root.addView(diagnosticTitle);
+
+        traffic = new TextView(this);
+        traffic.setText("Reçues : —     Envoyées : —");
+        traffic.setTextSize(15);
+        traffic.setPadding(0, 0, 0, 12);
+        root.addView(traffic);
+
+        handshake = new TextView(this);
+        handshake.setText("Proton : en attente de connexion");
+        handshake.setTextSize(14);
+        root.addView(handshake);
+
+        TextView note = new TextView(this);
+        note.setText("« Tunnel démarré » ne signifie pas encore que le serveur répond. Vérifie ici la négociation et le trafic.");
+        note.setTextSize(12);
+        note.setPadding(0, 22, 0, 0);
+        root.addView(note);
+
         setContentView(root);
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " o";
+        if (bytes < 1024L * 1024) return String.format(Locale.getDefault(), "%.1f Ko", bytes / 1024.0);
+        return String.format(Locale.getDefault(), "%.2f Mo", bytes / (1024.0 * 1024.0));
     }
 
     private void chooseConfig() {
@@ -122,6 +202,8 @@ public class MainActivity extends Activity {
             if (input == null) throw new IllegalStateException("Fichier inaccessible");
             config = Config.parse(input);
             status.setText("État : configuration importée, prête à être utilisée");
+            handshake.setText("Proton : en attente de connexion");
+            traffic.setText("Reçues : —     Envoyées : —");
             Toast.makeText(this, "Configuration importée", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             config = null;
@@ -150,8 +232,15 @@ public class MainActivity extends Activity {
         vpnExecutor.execute(() -> {
             try {
                 backend.setState(tunnel, Tunnel.State.UP, config);
-                runOnUiThread(() -> status.setText("État : connecté"));
+                monitoring = true;
+                runOnUiThread(() -> {
+                    status.setText("État : tunnel démarré, vérification du serveur…");
+                    handshake.setText("Proton : vérification de la négociation…");
+                    mainHandler.removeCallbacks(statsPoll);
+                    mainHandler.post(statsPoll);
+                });
             } catch (Exception e) {
+                monitoring = false;
                 android.util.Log.e("DONALD_LA_VPN", "Échec du démarrage WireGuard", e);
                 StringBuilder detail = new StringBuilder(e.getClass().getSimpleName());
                 if (e.getMessage() != null && !e.getMessage().trim().isEmpty()) {
@@ -173,6 +262,7 @@ public class MainActivity extends Activity {
                 final String error = detail.toString();
                 runOnUiThread(() -> {
                     status.setText("Échec VPN : " + error);
+                    handshake.setText("Proton : connexion non établie");
                     Toast.makeText(this, "Échec VPN : " + error, Toast.LENGTH_LONG).show();
                 });
             }
@@ -180,17 +270,31 @@ public class MainActivity extends Activity {
     }
 
     private void disconnectVpn() {
+        monitoring = false;
+        mainHandler.removeCallbacks(statsPoll);
         status.setText("État : déconnexion…");
         vpnExecutor.execute(() -> {
             try {
                 backend.setState(tunnel, Tunnel.State.DOWN, null);
-                runOnUiThread(() -> status.setText("État : déconnecté"));
+                runOnUiThread(() -> {
+                    status.setText("État : déconnecté");
+                    traffic.setText("Reçues : —     Envoyées : —");
+                    handshake.setText("Proton : déconnecté");
+                });
             } catch (Exception e) {
                 android.util.Log.e("DONALD_LA_VPN", "Échec de la déconnexion", e);
                 runOnUiThread(() ->
-                    Toast.makeText(this, "Déconnexion impossible", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Déconnexion impossible", Toast.LENGTH_SHORT).show()
                 );
             }
         });
+    }
+
+    @Override
+    protected void onDestroy() {
+        monitoring = false;
+        mainHandler.removeCallbacks(statsPoll);
+        vpnExecutor.shutdown();
+        super.onDestroy();
     }
 }
