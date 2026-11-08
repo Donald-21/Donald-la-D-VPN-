@@ -120,10 +120,13 @@ public class MainActivity extends Activity {
         appFrame.setBackground(backdrop);
         ImageView watermark = new ImageView(this);
         watermark.setImageResource(R.drawable.phoenix_logo6);
-        watermark.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        watermark.setAlpha(0.10f);
-        appFrame.addView(watermark, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        watermark.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        watermark.setAlpha(0.24f);
+        watermark.setAdjustViewBounds(true);
+        FrameLayout.LayoutParams watermarkParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER);
+        watermarkParams.setMargins(dp(18), dp(72), dp(18), dp(86));
+        appFrame.addView(watermark, watermarkParams);
         setContentView(appFrame);
         showPage("Menu");
     }
