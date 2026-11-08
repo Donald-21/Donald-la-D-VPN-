@@ -15,6 +15,8 @@ import com.wireguard.android.backend.Tunnel;
 import com.wireguard.config.Config;
 
 import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final int PICK_CONFIG = 1001;
@@ -24,6 +26,7 @@ public class MainActivity extends Activity {
     private final AppTunnel tunnel = new AppTunnel();
     private TextView status;
     private boolean pendingConnect;
+    private final ExecutorService vpnExecutor = Executors.newSingleThreadExecutor();
 
     private final class AppTunnel implements Tunnel {
         @Override
@@ -143,39 +146,51 @@ public class MainActivity extends Activity {
     }
 
     private void startTunnel() {
-        try {
-            backend.setState(tunnel, Tunnel.State.UP, config);
-            status.setText("État : connexion demandée");
-        } catch (Exception e) {
-            android.util.Log.e("DONALD_LA_VPN", "Échec du démarrage WireGuard", e);
-            StringBuilder detail = new StringBuilder(e.getClass().getSimpleName());
-            if (e.getMessage() != null && !e.getMessage().trim().isEmpty()) {
-                detail.append(": ").append(e.getMessage());
-            }
-            Throwable cause = e.getCause();
-            int depth = 0;
-            while (cause != null && cause != e && depth < 4) {
-                String message = cause.getMessage();
-                detail.append(" → ").append(cause.getClass().getSimpleName());
-                if (message != null && !message.trim().isEmpty()) {
-                    detail.append(": ").append(message);
+        status.setText("État : démarrage du VPN…");
+        vpnExecutor.execute(() -> {
+            try {
+                backend.setState(tunnel, Tunnel.State.UP, config);
+                runOnUiThread(() -> status.setText("État : connecté"));
+            } catch (Exception e) {
+                android.util.Log.e("DONALD_LA_VPN", "Échec du démarrage WireGuard", e);
+                StringBuilder detail = new StringBuilder(e.getClass().getSimpleName());
+                if (e.getMessage() != null && !e.getMessage().trim().isEmpty()) {
+                    detail.append(": ").append(e.getMessage());
                 }
-                Throwable next = cause.getCause();
-                if (next == cause) break;
-                cause = next;
-                depth++;
+                Throwable cause = e.getCause();
+                int depth = 0;
+                while (cause != null && cause != e && depth < 4) {
+                    String message = cause.getMessage();
+                    detail.append(" → ").append(cause.getClass().getSimpleName());
+                    if (message != null && !message.trim().isEmpty()) {
+                        detail.append(": ").append(message);
+                    }
+                    Throwable next = cause.getCause();
+                    if (next == cause) break;
+                    cause = next;
+                    depth++;
+                }
+                final String error = detail.toString();
+                runOnUiThread(() -> {
+                    status.setText("Échec VPN : " + error);
+                    Toast.makeText(this, "Échec VPN : " + error, Toast.LENGTH_LONG).show();
+                });
             }
-            status.setText("Échec VPN : " + detail);
-            Toast.makeText(this, "Échec VPN : " + detail, Toast.LENGTH_LONG).show();
-        }
+        });
     }
 
     private void disconnectVpn() {
-        try {
-            backend.setState(tunnel, Tunnel.State.DOWN, null);
-            status.setText("État : déconnecté");
-        } catch (Exception e) {
-            Toast.makeText(this, "Déconnexion impossible", Toast.LENGTH_SHORT).show();
-        }
+        status.setText("État : déconnexion…");
+        vpnExecutor.execute(() -> {
+            try {
+                backend.setState(tunnel, Tunnel.State.DOWN, null);
+                runOnUiThread(() -> status.setText("État : déconnecté"));
+            } catch (Exception e) {
+                android.util.Log.e("DONALD_LA_VPN", "Échec de la déconnexion", e);
+                runOnUiThread(() ->
+                    Toast.makeText(this, "Déconnexion impossible", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
     }
 }
